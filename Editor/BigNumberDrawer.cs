@@ -14,15 +14,22 @@ public class BigNumberDrawer : PropertyDrawer
     #region Options
 
     /// <summary> Symbol used to separate groups of digits inside a number. </summary>
-    public const string NumberSeparator = " "; // Can be anything except '.', since period is used as decimal separator in Unity.
+    private const string NumberSeparator = " "; // Can be anything except '.', since period is used as decimal separator in Unity.
 
     /// <summary> If number is equals or bigger than this value, an abbreviated version would appear in label. </summary>
-    public const int ShowAbbreviationMin = 10_000;
+    private const int ShowAbbreviationMin = 10_000;
 
     /// <summary> Amount of digits shown after '.' in abbreviated values. </summary>
-    public const int DecimalPlacesInAbbreviated = 2;
+    private const int DecimalPlacesInAbbreviated = 2;
+
+    /// <summary> Ignore any digits for float if its larger than this number. Floating point presision is rough once numbers go big. </summary>
+    private const float FloatMaxNumberForDigits = 8_388_608f; //2^23
+    /// <summary> Ignore any digits for double if its larger than this number. Floating point presision is rough once numbers go big. </summary>
+    private const double DoubleMaxNumberForDigits = 4_503_599_627_370_496d; //2^52
 
     #endregion
+
+
 
     private static readonly NumberFormatInfo SeparatorFormat = new NumberFormatInfo { NumberGroupSeparator = NumberSeparator, NumberDecimalDigits = 0 };
 
@@ -74,6 +81,8 @@ public class BigNumberDrawer : PropertyDrawer
         if (input == toText) return;
 
         string parsable = input.Replace(NumberSeparator, string.Empty).Replace(" ", string.Empty);
+        if (string.IsNullOrWhiteSpace(parsable)) parsable = "0";
+
         //Todo: add math expression support. 
         try
         {
@@ -103,37 +112,35 @@ public class BigNumberDrawer : PropertyDrawer
                         property.floatValue = float.Parse(parsable, CultureInfo.InvariantCulture);
                     }
                     catch (OverflowException) { 
-                        if (property.floatValue > 0) property.floatValue = float.MaxValue;
-                        else property.floatValue = float.MinValue; 
                     }
                     break;
 				case "double":
 					try {
                         property.doubleValue = double.Parse(parsable, CultureInfo.InvariantCulture);
                     }
-                    catch (OverflowException) { 
-                        if (property.doubleValue > 0) property.doubleValue = double.MaxValue; 
-                        else property.doubleValue = double.MinValue; 
+                    catch (OverflowException) {
                     } 
 					break;
 			}
-			property.serializedObject.ApplyModifiedProperties();
-		}
-		catch(System.Exception)
+        }
+        catch (System.Exception)
         {
             //Any formatting errors will be ignored, Unity will automatically revert to last correct input.
         }
-	}
+        property.serializedObject.ApplyModifiedProperties();
+
+    }
 
     private string AddSeparators(long value) { return value.ToString("N", SeparatorFormat); } 
     private string AddSeparators(double value)
     {
         StringBuilder sb = new StringBuilder();
 
-        sb.Append(value.ToString("N", SeparatorFormat));
+        sb.Append(Math.Truncate(value).ToString("N", SeparatorFormat));
 
         string decimals = value.ToString(CultureInfo.InvariantCulture);
-        if(decimals.Contains('.')) //A very small number will display in scientific notation. Todo..? 
+        if (decimals.Contains('.') && 
+            value < DoubleMaxNumberForDigits && value > -DoubleMaxNumberForDigits)
         {
             decimals = decimals.Substring(decimals.LastIndexOf('.') + 1);
             sb.Append('.');
@@ -148,14 +155,16 @@ public class BigNumberDrawer : PropertyDrawer
 
         return sb.ToString();
     }
+
+    //Maybe avoidable with 'dynamic' value - avoiding it for compatibility.
     private string AddSeparators(float value)
     {
         StringBuilder sb = new StringBuilder();
 
-        sb.Append(value.ToString("N", SeparatorFormat));
+        sb.Append(Mathf.Floor(value).ToString("N", SeparatorFormat)); //A very small number will display in scientific notation. Todo..? 
 
         string decimals = value.ToString(CultureInfo.InvariantCulture);
-        if (decimals.Contains('.')) //A very small number will display in scientific notation. Todo..? 
+        if (decimals.Contains('.') && value < FloatMaxNumberForDigits && value > -FloatMaxNumberForDigits)
         {
             decimals = decimals.Substring(decimals.LastIndexOf('.') + 1);
             sb.Append('.');
@@ -209,19 +218,27 @@ public class BigNumberDrawer : PropertyDrawer
     /// <remarks> Must be ordered from small to large. </remarks>
     private enum NumberSuffix 
     {
-        //Realistically should be metric symbols, but most people are much more used to those. Feel free to rename them as you wish.
+        //Realistically could be metric symbols, feel free to rename them as you wish.
 
-        /// <summary> Thousand = 1_000 </summary>
+        /// <summary> Thousand (k) = 1_000 </summary>
         K = 1,
-        /// <summary> Million = 1_000_000 </summary>
-        M = 2,
-        /// <summary> Billion = 1_000_000_000 </summary>
-        B = 3,
-        /// <summary> Trillion = 1_000_000_000_000 </summary>
-        T = 4,
-        /// <summary> Quadrillion = 1_000_000_000_000_000</summary>
-        Q = 5,
-        /// <summary> Quintillion = 1_000_000_000_000_000_000</summary>
-        QT = 6
+        /// <summary> Million (M) = 1_000_000 </summary>
+        Million = 2,
+        /// <summary> Billion (G) = 1_000_000_000 </summary>
+        Billion = 3,
+        /// <summary> Trillion (T) = 1_000_000_000_000 </summary>
+        Trillion = 4,
+        /// <summary> Quadrillion (P) = 1_000_000_000_000_000 </summary>
+        Quadrillion = 5,
+        /// <summary> Quintillion (E) = 1_000_000_000_000_000_000 </summary>
+        Quintillion = 6,
+        /// <summary> Sextillion (Z) = 1_000_000_000_000_000_000_000 </summary>
+        Sextillion = 7,
+        /// <summary> Septillion (Y) = 1_000_000_000_000_000_000_000_000 </summary>
+        Septillion = 8,
+        /// <summary> Octillion (R) = 1_000_000_000_000_000_000_000_000_000 </summary>
+        Octillion = 9,
+        /// <summary> Nonillion (Q) = 1_000_000_000_000_000_000_000_000_000_000 </summary>
+        Nonillion = 10
     }
 }
